@@ -1,4 +1,5 @@
 use azure_core::TransportOptions;
+use azure_svc_imds::models::IdentityTokenResponse;
 use azure_svc_imds::package_2023_07_01;
 use azure_svc_imds::package_2023_07_01::models::Versions;
 use futures::executor::block_on;
@@ -7,13 +8,37 @@ use reqwest::header;
 use std::sync::Arc;
 mod empty_credential;
 
-async fn get_metadata(c: &package_2023_07_01::Client) -> Result<Versions, azure_core::Error> {
+async fn get_versions(c: &package_2023_07_01::Client) -> Result<Versions, azure_core::Error> {
     match c.get_versions().await {
 	Ok(t) => Ok(t),
 	Err(e) => {
 	    println!("got err {}", e);
 	    Err(e)
 	}
+    }
+}
+
+async fn get_token_info(c: &package_2023_07_01::Client) -> String {
+    match c.identity_client().get_info("true").await {
+	Ok(t) => t.tenant_id.expect("get_token_info()"),
+	Err(e) => format!("Error: {}", e),
+    }
+}
+
+async fn get_token(c: &package_2023_07_01::Client) -> Result<IdentityTokenResponse, azure_core::Error> {
+    match c.identity_client().get_token("true", "https%3A%2F%2Fstorage.azure.com%2F").await {
+	Ok(t) => Ok(t),
+	Err(e) => {
+	    println!("get_token: error: {}", e);
+	    Err(e)
+	}
+    }
+}
+
+async fn get_metadata(c: &package_2023_07_01::Client) -> String {
+    match c.instances_client().get_metadata("true").await {
+	Ok(t) => t.compute.unwrap().name.expect("fetch"),
+	Err(e) => format!("error: {}", e),
     }
 }
 
@@ -29,6 +54,11 @@ fn build_transport_options() -> TransportOptions {
     TransportOptions::new(Arc::new(client))
 }
 
+// static metadata: Lazy<instances::get_metadata::Response> = Lazy::new(|| {
+//     println!("Retrieving and caching data");
+    
+// });
+
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
@@ -40,14 +70,21 @@ async fn main() {
 	    Ok(t) => t,
 	    Err(e) => panic!("unable to build client: {}", e),
 	};
-    let md = match block_on(get_metadata(&c)) {
+    let md = match block_on(get_versions(&c)) {
 	Ok(t) => t,
 	Err(e) => {
-	    println!("got an error from get_metadata(): {}", e);
+	    println!("got an error from get_versions(): {}", e);
 	    panic!("bad");
 	}
     };
     for ver in md.api_versions.iter() {
 	println!("Got version {}", ver);
     }
+    let tokeninfo = get_token_info(&c).await;
+    println!("token: {}", tokeninfo);
+    let token = get_token(&c).await;
+    println!("Got a token with lifetime {}", token.unwrap().expires_in.expect("token"));
+
+    let meta = get_metadata(&c).await;
+    println!("Got metadata {}", meta);
 }
