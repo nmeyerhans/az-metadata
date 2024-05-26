@@ -1,8 +1,9 @@
 use azure_core::TransportOptions;
-use azure_svc_imds::models::IdentityTokenResponse;
+use azure_svc_imds::models::{IdentityTokenResponse, Instance};
 use azure_svc_imds::package_2023_07_01;
 use azure_svc_imds::package_2023_07_01::models::Versions;
 use futures::executor::block_on;
+use once_cell::sync::Lazy;
 use reqwest;
 use reqwest::header;
 use std::sync::Arc;
@@ -35,10 +36,34 @@ async fn get_token(c: &package_2023_07_01::Client) -> Result<IdentityTokenRespon
     }
 }
 
-async fn get_metadata(c: &package_2023_07_01::Client) -> String {
+fn get_name() -> &'static String {
+    METADATA.compute.as_ref().unwrap().name.as_ref().expect("metadata extraction failed")
+}
+
+fn get_id() -> &'static String {
+    METADATA.compute.as_ref().unwrap().vm_id.as_ref().expect("metadata extraction failed")
+}
+
+fn get_az_environment() -> &'static String {
+    METADATA.compute.as_ref().unwrap().az_environment.as_ref().expect("metadata extraction failed")
+}
+
+fn get_vm_size() -> &'static String {
+    METADATA.compute.as_ref().unwrap().vm_size.as_ref().expect("metadata extraction failed")
+}
+
+async fn _get_metadata() -> Instance {
+    let transport_options = build_transport_options();
+    let c = match azure_svc_imds::ClientBuilder::new(empty_credential::create_empty_credential())
+        .endpoint(package_2023_07_01::DEFAULT_ENDPOINT.clone())
+        .transport(transport_options)
+        .build() {
+	    Ok(t) => t,
+	    Err(e) => panic!("unable to build client: {}", e),
+	};
     match c.instances_client().get_metadata("true").await {
-	Ok(t) => t.compute.unwrap().name.expect("fetch"),
-	Err(e) => format!("error: {}", e),
+	Ok(r) => r,
+	Err(e) => panic!("Unable to retrieve metadata from IMDS endpoint: {}", e),
     }
 }
 
@@ -54,10 +79,10 @@ fn build_transport_options() -> TransportOptions {
     TransportOptions::new(Arc::new(client))
 }
 
-// static metadata: Lazy<instances::get_metadata::Response> = Lazy::new(|| {
-//     println!("Retrieving and caching data");
-    
-// });
+static METADATA: Lazy<Instance> = Lazy::new(|| {
+    println!("Retrieving and caching data");
+    block_on(_get_metadata())
+});
 
 #[tokio::main]
 async fn main() {
@@ -85,6 +110,9 @@ async fn main() {
     let token = get_token(&c).await;
     println!("Got a token with lifetime {}", token.unwrap().expires_in.expect("token"));
 
-    let meta = get_metadata(&c).await;
-    println!("Got metadata {}", meta);
+    println!("metadata: {:#?}", METADATA.compute);
+    println!("VM is named {}", get_name());
+    println!("VM ID is {}", get_id());
+    println!("AZ environment: {}", get_az_environment());
+    println!("VM size: {}", get_vm_size());
 }
