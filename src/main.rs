@@ -8,6 +8,9 @@ use reqwest;
 use reqwest::header;
 use std::sync::Arc;
 mod empty_credential;
+mod imds_fetchers;
+
+use crate::imds_fetchers::ImdsClient;
 
 async fn get_versions(c: &package_2023_07_01::Client) -> Result<Versions, azure_core::Error> {
     match c.get_versions().await {
@@ -115,4 +118,7 @@ async fn main() {
     println!("VM ID is {}", get_id());
     println!("AZ environment: {}", get_az_environment());
     println!("VM size: {}", get_vm_size());
+
+    let c = ImdsClient::new(&METADATA);
+    println!("got environment {}", c.get("az-environment"));
 }
