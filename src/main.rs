@@ -73,29 +73,6 @@ static METADATA: Lazy<Instance> = Lazy::new(|| {
 
 #[tokio::main]
 async fn main() {
-    println!("Hello, world!");
-    let transport_options = build_transport_options();
-    let c = match azure_svc_imds::ClientBuilder::new(empty_credential::create_empty_credential())
-        .endpoint(package_2023_07_01::DEFAULT_ENDPOINT.clone())
-        .transport(transport_options)
-        .build() {
-	    Ok(t) => t,
-	    Err(e) => panic!("unable to build client: {}", e),
-	};
-    let md = match block_on(get_versions(&c)) {
-	Ok(t) => t,
-	Err(e) => {
-	    println!("got an error from get_versions(): {}", e);
-	    panic!("bad");
-	}
-    };
-    for ver in md.api_versions.iter() {
-	println!("Got version {}", ver);
-    }
-    let tokeninfo = get_token_info(&c).await;
-    println!("token: {}", tokeninfo);
-    let token = get_token(&c).await;
-    println!("Got a token with lifetime {}", token.unwrap().expires_in.expect("token"));
 
     // println!("metadata: {:#?}", METADATA.compute);
 
@@ -105,4 +82,6 @@ async fn main() {
     println!("VM ID: {}", c.get("id"));
     println!("VM Size: {}", c.get("size"));
     println!("VM location: {}", c.get("az-location"));
+    println!("IPv4: {}", c.get("public-ipv4"));
+    println!("Private IPv4: {}", c.get("private-ipv4"));
 }

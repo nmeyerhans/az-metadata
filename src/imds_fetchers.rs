@@ -49,6 +49,22 @@ impl ImdsField for Size {
     }
 }
 
+struct PublicIPv4;
+impl ImdsField for PublicIPv4 {
+    fn get(&self, i: &Instance) -> String {
+	i.network.as_ref().unwrap().interface[0].ipv4.as_ref().unwrap()
+	    .ip_address[0].public_ip_address.as_ref().expect("foo").to_string()
+    }
+}
+
+struct PrivateIPv4;
+impl ImdsField for PrivateIPv4 {
+    fn get(&self, i: &Instance) -> String {
+	i.network.as_ref().unwrap().interface[0].ipv4.as_ref().unwrap()
+	    .ip_address[0].private_ip_address.as_ref().expect("foo").to_string()
+    }
+}
+
 pub struct ImdsClient<'a> {
     functions: HashMap<&'a str, Box<dyn ImdsField>>,
     instance: &'a Instance,
@@ -62,6 +78,8 @@ impl ImdsClient<'_> {
 	table.insert("name", Box::new(Name));
 	table.insert("id", Box::new(Id));
 	table.insert("size", Box::new(Size));
+	table.insert("public-ipv4", Box::new(PublicIPv4));
+	table.insert("private-ipv4", Box::new(PrivateIPv4));
 
 	ImdsClient{
 	    functions: table,
